@@ -34,8 +34,13 @@ func main() {
 
 	// Positional arg: filename (with or without extension)
 	arg := os.Args[1]
-	filename, probePath := normalizeFilename(arg)
-	args := os.Args[2:]
+filename, probePath := normalizeFilename(arg)
+// Determine working directory based on provided path (if any)
+workDir := ""
+if dir := filepath.Dir(arg); dir != "." && dir != "" {
+	workDir, _ = filepath.Abs(dir)
+}
+args := os.Args[2:]
 
 	fs := flag.NewFlagSet("hls-tui", flag.ContinueOnError)
 	fs.SetOutput(new(strings.Builder)) // suppress default error printing
@@ -75,8 +80,10 @@ func main() {
 	}
 
 	dur := probeDuration(probePath)
-	m := initialModel(filename, useEnhanced, dur)
-	m.args = passArgs
+m := initialModel(filename, useEnhanced, dur)
+m.args = passArgs
+m.workDir = workDir
+m.probePath = probePath
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if err := p.Start(); err != nil {
 		fmt.Println("error:", err)

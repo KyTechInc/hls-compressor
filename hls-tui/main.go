@@ -30,7 +30,9 @@ type model struct {
 	status      string
 	progress    progress.Model
 	logView     viewport.Model
-	args        []string
+args        []string
+	workDir    string
+	probePath  string
 
 	// process management
 	cancel context.CancelFunc
@@ -69,10 +71,10 @@ func (m model) Init() tea.Cmd { return nil }
 
 func (m model) View() string {
 	var b strings.Builder
-	b.WriteString(paddingStyle.Render(fmt.Sprintf(
-		"hls-compressor TUI\n\nFile: %s\nScript: %s\nStatus: %s\nArgs: %s\n\n",
-		m.filename, scriptName(m.useEnhanced), m.status, strings.Join(m.args, " "),
-	)))
+b.WriteString(paddingStyle.Render(fmt.Sprintf(
+		"hls-compressor TUI\n\nFile: %s\nScript: %s\nStatus: %s\nArgs: %s\nWorkDir: %s\nProbe: %s\n\n",
+		m.filename, scriptName(m.useEnhanced), m.status, strings.Join(m.args, " "), m.workDir, m.probePath,
+)))
 	b.WriteString(m.progress.ViewAs(m.percent))
 	b.WriteString("\n\n")
 	b.WriteString(logStyle.Render(m.logView.View()))
@@ -147,7 +149,7 @@ func (m model) startEncoding() tea.Cmd {
 		m.cancel = cancel
 		// Start the runner in a goroutine
 		go func() {
-if err := runScript(ctx, m.useEnhanced, m.filename, m.args, m.lineCh); err != nil {
+if err := runScript(ctx, m.useEnhanced, m.filename, m.args, m.workDir, m.lineCh); err != nil {
 				m.doneCh <- err
 				return
 			}
@@ -195,22 +197,29 @@ func bashWrapArgs(exe string, args ...string) (string, []string) {
 	return exe, args
 }
 
-func runScript(ctx context.Context, enhanced bool, filename string, extraArgs []string, out chan<- string) error {
+func runScript(ctx context.Context, enhanced bool, filename string, extraArgs []string, workDir string, out chan<- string) error {
 	script := scriptPath(enhanced)
 	if _, err := os.Stat(script); err != nil {
 		return fmt.Errorf("script not found: %s", script)
 	}
 	// Ensure working dir contains the input .mp4
-	input := filename + ".mp4"
-	if _, err := os.Stat(input); err != nil {
-		// Not fatal, the script will report a clearer error; just warn
-		out <- fmt.Sprintf("warning: input file not found here: %s", input)
+input := filename + ".mp4"
+	checkPath := input
+	if workDir != "" {
+		checkPath = filepath.Join(workDir, input)
+	}
+	if _, err := os.Stat(checkPath); err != nil {
+		out <- fmt.Sprintf("warning: input file not found: %s", checkPath)
 	}
 
 allArgs := append([]string{filename}, extraArgs...)
 exe, args := bashWrapArgs(script, allArgs...)
 cmd := exec.CommandContext(ctx, exe, args...)
-	cmd.Dir = mustAbs(".")
+	if workDir != "" {
+		cmd.Dir = workDir
+	} else {
+		cmd.Dir = mustAbs(".")
+	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
