@@ -65,28 +65,3 @@ Quality-optimized bitrates vary by preset:
 - **Fallback**: Software encoding (`libx264`)
 
 Auto-detection based on system and available hardware.
-## Tauri GUI Application
-
-The project now includes a modern desktop GUI built with Tauri + React + Vite.
-
-### Development Commands
-```bash
-cd hls-converter
-bun install                    # Install dependencies
-bun run tauri dev             # Start development server
-bun run tauri build           # Build for production
-```
-
-### GUI Features
-- **Drag & Drop Interface**: Drop video files directly into the app
-- **Real-time Progress**: Visual feedback during conversion
-- **Configurable Settings**: Quality presets, resolutions, hardware acceleration
-- **Output Management**: Direct access to converted files and folders
-
-### Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS + Vite
-- **Backend**: Rust (Tauri) with async command handlers
-- **File Operations**: Uses Tauri plugins for fs, shell, and dialog operations
-- **Script Integration**: Executes `enhanced_hls.sh` via Rust backend
-
-The GUI app provides the same functionality as the command-line scripts but with an intuitive visual interface.
