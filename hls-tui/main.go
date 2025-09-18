@@ -182,7 +182,7 @@ func scriptName(enhanced bool) string {
 }
 
 func scriptPath(enhanced bool) string {
-	return "./" + scriptName(enhanced)
+	return scriptName(enhanced)
 }
 
 func bashWrapArgs(exe string, args ...string) (string, []string) {
@@ -198,7 +198,11 @@ func bashWrapArgs(exe string, args ...string) (string, []string) {
 }
 
 func runScript(ctx context.Context, enhanced bool, filename string, extraArgs []string, workDir string, out chan<- string) error {
-	script := scriptPath(enhanced)
+	// Resolve absolute path to script: <tui-bin-dir>/../enhanced_hls.sh
+	exePath, _ := os.Executable()
+	baseDir := filepath.Dir(exePath)
+	repoRoot := filepath.Clean(filepath.Join(baseDir, ".."))
+	script := filepath.Join(repoRoot, scriptPath(enhanced))
 	if _, err := os.Stat(script); err != nil {
 		return fmt.Errorf("script not found: %s", script)
 	}
