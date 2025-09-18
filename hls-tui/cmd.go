@@ -52,17 +52,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	filename, probeRel := normalizeFilename(filenameToken)
-	// Determine working directory based on provided path (if any)
-	workDir := ""
-	if dir := filepath.Dir(filenameToken); dir != "." && dir != "" {
-		workDir, _ = filepath.Abs(dir)
-	}
-	probePath := probeRel
-	if workDir != "" && !filepath.IsAbs(probeRel) {
-		probePath = filepath.Join(workDir, probeRel)
-	}
-	if abs, err := filepath.Abs(probePath); err == nil { probePath = abs }
+filename, probeRel := normalizeFilename(filenameToken)
+// Determine working directory based on provided path (if any)
+workDir := ""
+if dir := filepath.Dir(filenameToken); dir != "." && dir != "" {
+	workDir, _ = filepath.Abs(dir)
+}
+probePath := probeRel
+if workDir != "" && !filepath.IsAbs(probeRel) {
+	probePath = filepath.Join(workDir, probeRel)
+}
+if abs, err := filepath.Abs(probePath); err == nil { probePath = abs }
+
+// Decide what to pass into the script as the first argument:
+// - If user provided a .mp4 path and it exists, pass the absolute .mp4 path (scripts handle it)
+// - Otherwise pass the basename (scripts will append .mp4)
+passFirstArg := filename
+if strings.HasSuffix(strings.ToLower(filenameToken), ".mp4") {
+	passFirstArg = probePath
+}
 
 	fs := flag.NewFlagSet("hls-tui", flag.ContinueOnError)
 	fs.SetOutput(new(strings.Builder)) // suppress default error printing
@@ -106,6 +114,7 @@ m := initialModel(filename, useEnhanced, dur)
 m.args = passArgs
 m.workDir = workDir
 m.probePath = probePath
+m.firstArg = passFirstArg
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if err := p.Start(); err != nil {
 		fmt.Println("error:", err)

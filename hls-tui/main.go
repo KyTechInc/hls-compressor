@@ -33,6 +33,7 @@ type model struct {
 args        []string
 	workDir    string
 	probePath  string
+	firstArg   string
 
 	// process management
 	cancel context.CancelFunc
@@ -72,8 +73,8 @@ func (m model) Init() tea.Cmd { return nil }
 func (m model) View() string {
 	var b strings.Builder
 b.WriteString(paddingStyle.Render(fmt.Sprintf(
-		"hls-compressor TUI\n\nFile: %s\nScript: %s\nStatus: %s\nArgs: %s\nWorkDir: %s\nProbe: %s\n\n",
-		m.filename, scriptName(m.useEnhanced), m.status, strings.Join(m.args, " "), m.workDir, m.probePath,
+		"hls-compressor TUI\n\nFile: %s\nScript: %s\nStatus: %s\nArgs: %s\nWorkDir: %s\nProbe: %s\nPassArg: %s\n\n",
+		m.filename, scriptName(m.useEnhanced), m.status, strings.Join(m.args, " "), m.workDir, m.probePath, m.firstArg,
 )))
 	b.WriteString(m.progress.ViewAs(m.percent))
 	b.WriteString("\n\n")
@@ -149,7 +150,7 @@ func (m model) startEncoding() tea.Cmd {
 		m.cancel = cancel
 		// Start the runner in a goroutine
 		go func() {
-if err := runScript(ctx, m.useEnhanced, m.filename, m.args, m.workDir, m.lineCh); err != nil {
+if err := runScript(ctx, m.useEnhanced, m.firstArg, m.args, m.workDir, m.lineCh); err != nil {
 				m.doneCh <- err
 				return
 			}
@@ -197,7 +198,7 @@ func bashWrapArgs(exe string, args ...string) (string, []string) {
 	return exe, args
 }
 
-func runScript(ctx context.Context, enhanced bool, filename string, extraArgs []string, workDir string, out chan<- string) error {
+func runScript(ctx context.Context, enhanced bool, firstArg string, extraArgs []string, workDir string, out chan<- string) error {
 	// Resolve absolute path to script: <tui-bin-dir>/../enhanced_hls.sh
 	exePath, _ := os.Executable()
 	baseDir := filepath.Dir(exePath)
@@ -207,14 +208,14 @@ func runScript(ctx context.Context, enhanced bool, filename string, extraArgs []
 		return fmt.Errorf("script not found: %s", script)
 	}
 	// Log execution context
-	out <- fmt.Sprintf("running: %s %s", script, strings.Join(append([]string{filename}, extraArgs...), " "))
+out <- fmt.Sprintf("running: %s %s", script, strings.Join(append([]string{firstArg}, extraArgs...), " "))
 	if workDir != "" {
 		out <- fmt.Sprintf("cwd: %s", workDir)
 	} else {
 		out <- fmt.Sprintf("cwd: %s", mustAbs("."))
 	}
 
-	allArgs := append([]string{filename}, extraArgs...)
+allArgs := append([]string{firstArg}, extraArgs...)
 	exe, args := bashWrapArgs(script, allArgs...)
 	cmd := exec.CommandContext(ctx, exe, args...)
 	if workDir != "" {
