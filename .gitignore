@@ -16,3 +16,11 @@ tmp/
 
 # Node / misc
 node_modules/
+
+# Go/TUI binaries
+hls-tui/hls-tui
+hls-tui/*.exe
+hls-tui/*.test
+
+# test video
+test.mp4
