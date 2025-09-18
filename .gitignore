@@ -1,0 +1,18 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# HLS outputs
+*/playlist.m3u8
+*/*p.m3u8
+*/*p_*.ts
+*/thumbnail.jpg
+
+# Logs / temp
+*.log
+*.tmp
+tmp/
+.temp/
+
+# Node / misc
+node_modules/
