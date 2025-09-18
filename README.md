@@ -4,6 +4,10 @@ Simple, script-based HLS (HTTP Live Streaming) compression workflow for generati
 
 Works on macOS, Linux, and Windows (via WSL or Git Bash). Requires ffmpeg and ffprobe.
 
+### Demo
+https://github.com/user-attachments/assets/784b12ad-edc3-4c9c-9751-6951dd155417
+
+
 ## Features
 - Multi-resolution HLS output (e.g., 1440p/1080p/720p)
 - Master playlist generation with variant streams
