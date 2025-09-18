@@ -21,13 +21,29 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-# Parse arguments
-input_filename="$1"
-input_file="$input_filename.mp4"
+# Parse arguments and normalize input path
+raw_arg="$1"
+# Determine if user passed a full path with extension
+if [[ -z "$raw_arg" ]]; then
+    echo "Usage: $0 input_filename (without extension) [-t] [-hw] [-r resolutions] [-q quality]"
+    exit 1
+fi
+
+if [[ "$raw_arg" == *.mp4 ]] && [ -f "$raw_arg" ]; then
+    # Full path or relative path to an existing .mp4
+    input_file="$raw_arg"
+    input_filename="${raw_arg##*/}"
+    input_filename="${input_filename%.*}"
+else
+    # Basename without extension; assume in current working directory
+    input_filename="${raw_arg%.*}"
+    input_file="${input_filename}.mp4"
+fi
 
 # Debug output
-echo "Debug: Received filename: '$input_filename'"
-echo "Debug: Looking for file: '$input_file'"
+echo "Debug: Received arg: '$raw_arg'"
+echo "Debug: Using filename: '$input_filename'"
+echo "Debug: Resolved input file: '$input_file'"
 text_overlay=false
 use_hardware=false
 resolutions="$DEFAULT_RESOLUTIONS"
@@ -50,8 +66,8 @@ if [ ! -f "$input_file" ]; then
     exit 1
 fi
 
-# Setup output directory
-output_dir=$(dirname "$input_file")
+# Setup output directory rooted at the input file's directory
+output_dir=$(cd "$(dirname "$input_file")" && pwd)
 output_subdir="$output_dir/$input_filename"
 output_file="$output_subdir/playlist.m3u8"
 mkdir -p "$output_subdir"

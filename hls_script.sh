@@ -8,10 +8,17 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-# Remove the file extension if provided
-input_filename="${1%.*}"
-input_file="$input_filename.mp4"
-output_dir=$(dirname "$input_file")
+# Normalize input: accept either basename or path to .mp4
+raw_arg="$1"
+if [[ "$raw_arg" == *.mp4 ]] && [ -f "$raw_arg" ]; then
+    input_file="$raw_arg"
+    input_filename="${raw_arg##*/}"
+    input_filename="${input_filename%.*}"
+else
+    input_filename="${raw_arg%.*}"
+    input_file="${input_filename}.mp4"
+fi
+output_dir=$(cd "$(dirname "$input_file")" && pwd)
 output_subdir="$output_dir/$input_filename"
 output_file="$output_subdir/playlist.m3u8"
 
