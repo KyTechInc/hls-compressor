@@ -72,6 +72,13 @@ make init
 # This will check/install ffmpeg (macOS/Linux), build the TUI, and create bin shims.
 ```
 
+No make? Use the setup script:
+```
+./scripts/setup.sh
+# Does the same steps as 'make init' on macOS/Debian/Ubuntu.
+# On Windows, follow the manual notes below.
+```
+
 Usage with simple commands:
 ```
 # Enhanced (default)
