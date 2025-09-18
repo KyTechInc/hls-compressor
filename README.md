@@ -70,6 +70,9 @@ Quick init:
 ```
 make init
 # This will check/install ffmpeg (macOS/Linux), build the TUI, and create bin shims.
+
+# Optionally install global commands (hls, hlsx) into /usr/local/bin
+make install
 ```
 
 No make? Use the setup script:
@@ -92,10 +95,12 @@ Usage with simple commands:
 ```
 
 Notes:
+- Global commands: after `make install`, you can run `hlsx myvideo -hw -q balanced` from anywhere.
+- Uninstall global commands: `make uninstall`.
 - On Windows, make may not be available by default. You can still build and run:
   - Install ffmpeg via winget: `winget install --id Gyan.FFmpeg.Full`
   - Build the TUI: `cd hls-tui && go build`
-  - Run: `./hls-tui/hls-tui myvideo ...` (or create your own .bat shim)
+  - Run: `./hls-tui/hls-tui myvideo ...` (or create your own .bat shim in a folder on PATH)
 
 The TUI simply wraps the existing scripts and shows progress; it doesn’t change their behavior.
 

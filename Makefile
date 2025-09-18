@@ -8,11 +8,13 @@ HAS_FFPROBE := $(shell command -v ffprobe >/dev/null 2>&1 && echo 1 || echo 0)
 
 help:
 	@echo "Targets:"
-	@echo "  make init   - Install ffmpeg if missing (macOS/Linux), build TUI, create bin shims"
-	@echo "  make deps   - Install ffmpeg/ffprobe if missing"
-	@echo "  make tui    - Build the TUI (hls-tui/hls-tui)"
-	@echo "  make run    - Run the TUI: make run FILE=myvideo [ARGS='-q quality -hw']"
-	@echo "  make clean  - Remove build outputs"
+	@echo "  make init      - Install ffmpeg if missing (macOS/Linux), build TUI, create bin shims"
+	@echo "  make deps      - Install ffmpeg/ffprobe if missing"
+	@echo "  make tui       - Build the TUI (hls-tui/hls-tui)"
+	@echo "  make run       - Run the TUI: make run FILE=myvideo [ARGS='-q quality -hw']"
+	@echo "  make install   - Install global commands: hls, hlsx (/usr/local/bin)"
+	@echo "  make uninstall - Remove global commands"
+	@echo "  make clean     - Remove build outputs"
 
 init: deps tui bin
 	@echo "\nDone. Try: ./bin/hls myvideo -q quality -r '1080,720' -hw"
@@ -66,6 +68,29 @@ bin:
 	@printf '%s\n' '#!/usr/bin/env bash' 'exec "$$PWD/hls-tui/hls-tui" "$$@"' > bin/hlsx
 	@chmod +x bin/hls bin/hlsx
 	@echo "Shims created: bin/hls, bin/hlsx (both run enhanced by default; pass -basic to use basic script)"
+
+# Install global commands into /usr/local/bin
+install: tui
+	@bin_dir=/usr/local/bin; \
+	exe="$(CURDIR)/hls-tui/hls-tui"; \
+	content='#!/usr/bin/env bash\nexec "'"$$exe"'" "'"$$@"'"\n'; \
+	if [ -w "$$bin_dir" ]; then \
+		printf "%b" "$$content" > "$$bin_dir/hls" && chmod +x "$$bin_dir/hls"; \
+		printf "%b" "$$content" > "$$bin_dir/hlsx" && chmod +x "$$bin_dir/hlsx"; \
+	else \
+		printf "%b" "$$content" | sudo tee "$$bin_dir/hls" >/dev/null && sudo chmod +x "$$bin_dir/hls"; \
+		printf "%b" "$$content" | sudo tee "$$bin_dir/hlsx" >/dev/null && sudo chmod +x "$$bin_dir/hlsx"; \
+	fi; \
+	echo "Installed to $$bin_dir: hls, hlsx"
+
+uninstall:
+	@bin_dir=/usr/local/bin; \
+	for f in hls hlsx; do \
+		if [ -e "$$bin_dir/$$f" ]; then \
+			if [ -w "$$bin_dir/$$f" ]; then rm -f "$$bin_dir/$$f"; else sudo rm -f "$$bin_dir/$$f"; fi; \
+			echo "Removed $$bin_dir/$$f"; \
+		fi; \
+	done
 
 clean:
 	@rm -f hls-tui/hls-tui
