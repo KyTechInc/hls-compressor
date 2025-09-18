@@ -12,14 +12,40 @@ import (
 var (
 	// time=00:01:23.45
 	ffTimeRe = regexp.MustCompile(`\btime=([0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?)`)
+	// Match our script's job start line
+	jobStartRe = regexp.MustCompile(`^Converting to\s+([0-9]{3,4})p\s+\(`)
 )
 
 func scanLines(rdr io.ReadCloser, out chan<- string) {
 	s := bufio.NewScanner(rdr)
 	s.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	// Split on either \n or \r to capture ffmpeg in-place updates
+	s.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		for i := 0; i < len(data); i++ {
+			if data[i] == '\n' || data[i] == '\r' {
+				return i + 1, dropCRLF(data[:i]), nil
+			}
+		}
+		if atEOF && len(data) > 0 {
+			return len(data), dropCRLF(data), nil
+		}
+		return 0, nil, nil
+	})
 	for s.Scan() {
-		out <- s.Text()
+		ln := strings.TrimSpace(s.Text())
+		if ln != "" {
+			out <- ln
+		}
 	}
+}
+
+func dropCRLF(b []byte) []byte {
+	// Trim trailing CR or LF if present
+	n := len(b)
+	for n > 0 && (b[n-1] == '\n' || b[n-1] == '\r') {
+		n--
+	}
+	return b[:n]
 }
 
 // updateProgressFromFFmpegLine parses a single ffmpeg stderr line and updates percent.
@@ -40,6 +66,15 @@ func updateProgressFromFFmpegLine(durationSec int, line string, current float64)
 		p = 1.0
 	}
 	return p
+}
+
+// detectJobStartHeight returns the height when a new job starts, or 0 if not matched.
+func detectJobStartHeight(line string) int {
+	m := jobStartRe.FindStringSubmatch(line)
+	if len(m) != 2 {
+		return 0
+	}
+	return atoi(m[1])
 }
 
 func parseHHMMSStoSeconds(s string) int {

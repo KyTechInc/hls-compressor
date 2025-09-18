@@ -30,10 +30,15 @@ type model struct {
 	status      string
 	progress    progress.Model
 	logView     viewport.Model
+	logContent  string
 	args        []string
 	workDir     string
 	probePath   string
 	firstArg    string
+	// multi-job tracking
+	totalJobs  int
+	jobDone    int
+	currentRes int
 
 	// process management
 	cancel context.CancelFunc
@@ -54,7 +59,7 @@ func initialModel(filename string, useEnhanced bool, durationSec int) model {
 	p := progress.New(progress.WithDefaultGradient())
 	p.FullColor = string(lipgloss.Color("#5DF"))
 	p.EmptyColor = string(lipgloss.Color("#222"))
-	lv := viewport.Model{Width: 80, Height: 12}
+	lv := viewport.Model{Width: 80, Height: 14}
 	lv.SetContent("")
 	return model{
 		filename:    filename,
@@ -63,6 +68,7 @@ func initialModel(filename string, useEnhanced bool, durationSec int) model {
 		status:      "Ready",
 		progress:    p,
 		logView:     lv,
+		logContent:  "",
 		lineCh:      make(chan string, 256),
 		doneCh:      make(chan error, 1),
 	}
@@ -76,7 +82,9 @@ func (m model) View() string {
 		"hls-compressor TUI\n\nFile: %s\nScript: %s\nStatus: %s\nArgs: %s\nWorkDir: %s\nProbe: %s\nPassArg: %s\n\n",
 		m.filename, scriptName(m.useEnhanced), m.status, strings.Join(m.args, " "), m.workDir, m.probePath, m.firstArg,
 	)))
-	b.WriteString(m.progress.ViewAs(m.percent))
+	// header progress: overall, wrap in same padding as header block for left alignment
+	prog := m.progress.ViewAs(m.percent)
+	b.WriteString(paddingStyle.Render(prog))
 	b.WriteString("\n\n")
 	b.WriteString(logStyle.Render(m.logView.View()))
 	b.WriteString("\n\n")
@@ -113,8 +121,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if h < 6 {
 			h = 6
 		}
+		// Keep some padding (2 left, 2 right from paddingStyle)
 		m.logView.Width = msg.Width - 6
 		m.logView.Height = h
+		if msg.Width > 6 {
+			m.progress.Width = msg.Width - 6
+		}
 	case startedMsg:
 		m.started = true
 		m.status = "Encoding…"
@@ -122,14 +134,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case lineMsg:
 		// Parse line for progress time and append to log
 		ln := string(msg)
-		m.percent = updateProgressFromFFmpegLine(m.durationSec, ln, m.percent)
+		// Detect job boundaries from script log
+		if h := detectJobStartHeight(ln); h > 0 {
+			// If a job was already in progress, mark it done before starting next
+			if m.currentRes != 0 && m.jobDone < m.totalJobs {
+				m.jobDone++
+			}
+			m.currentRes = h
+		}
+		// Inner job progress from ffmpeg
+		inner := updateProgressFromFFmpegLine(m.durationSec, ln, 0)
+		overall := inner
+		if m.totalJobs > 0 {
+			overall = (float64(m.jobDone) + inner) / float64(m.totalJobs)
+		}
+		m.percent = overall
 		if strings.TrimSpace(ln) != "" {
 			m.status = ln
-			m.logView.SetContent(m.logView.View() + ln + "\n")
+			// append and keep scrolled to bottom
+			m.logContent += ln + "\n"
+			m.logView.SetContent(m.logContent)
+			m.logView.GotoBottom()
 		}
 		return m, tea.Batch(m.progress.SetPercent(m.percent), m.waitForNextEvent())
 	case finishedMsg:
 		m.done = true
+		// Count the last job as completed
+		if m.totalJobs > 0 && m.jobDone < m.totalJobs {
+			m.jobDone = m.totalJobs
+		}
+		m.percent = 1.0
 		m.status = "Done"
 		return m, nil
 	case errMsg:

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -130,7 +131,41 @@ func main() {
 	}
 
 	dur := probeDuration(probePath)
+	srcH := probeHeight(probePath)
+	// Precompute the list of target heights from -r flag (or default) and skip over-source ones
+	var targets []int
+	if useEnhanced {
+		// Find any -r <list> in passArgs (already normalized)
+		for i := 0; i < len(passArgs); i++ {
+			if passArgs[i] == "-r" && i+1 < len(passArgs) {
+				for _, tok := range strings.Split(passArgs[i+1], ",") {
+					tok = strings.TrimSpace(tok)
+					if tok == "" {
+						continue
+					}
+					if n, err := strconv.Atoi(tok); err == nil {
+						if srcH == 0 || n <= srcH {
+							targets = append(targets, n)
+						}
+					}
+				}
+				break
+			}
+		}
+		if len(targets) == 0 {
+			// Default when -r absent
+			for _, n := range []int{1440, 1080, 720} {
+				if srcH == 0 || n <= srcH {
+					targets = append(targets, n)
+				}
+			}
+		}
+	} else {
+		// Basic script: a single job
+		targets = []int{srcH}
+	}
 	m := initialModel(filename, useEnhanced, dur)
+	m.totalJobs = len(targets)
 	m.args = passArgs
 	m.workDir = workDir
 	m.probePath = probePath
