@@ -11,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -28,6 +29,7 @@ type model struct {
 	percent     float64
 	status      string
 	progress    progress.Model
+	logView     viewport.Model
 	args        []string
 
 	// process management
@@ -40,16 +42,24 @@ type model struct {
 	err     error
 }
 
+var (
+	paddingStyle = lipgloss.NewStyle().Padding(1, 2)
+	logStyle     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#444")).Padding(0, 1)
+)
+
 func initialModel(filename string, useEnhanced bool, durationSec int) model {
 	p := progress.New(progress.WithDefaultGradient())
 	p.FullColor = string(lipgloss.Color("#5DF"))
 	p.EmptyColor = string(lipgloss.Color("#222"))
+	lv := viewport.Model{Width: 80, Height: 12}
+	lv.SetContent("")
 	return model{
 		filename:    filename,
 		useEnhanced: useEnhanced,
 		durationSec: durationSec,
 		status:      "Ready",
 		progress:    p,
+		logView:     lv,
 		lineCh:      make(chan string, 256),
 		doneCh:      make(chan error, 1),
 	}
@@ -58,13 +68,21 @@ func initialModel(filename string, useEnhanced bool, durationSec int) model {
 func (m model) Init() tea.Cmd { return nil }
 
 func (m model) View() string {
-	style := lipgloss.NewStyle().Padding(1, 2)
 	var b strings.Builder
-b.WriteString(style.Render(fmt.Sprintf("hls-compressor TUI\n\nFile: %s\nScript: %s\nStatus: %s\nArgs: %s\n\n", m.filename, scriptName(m.useEnhanced), m.status, strings.Join(m.args, " "))))
+	b.WriteString(paddingStyle.Render(fmt.Sprintf(
+		"hls-compressor TUI\n\nFile: %s\nScript: %s\nStatus: %s\nArgs: %s\n\n",
+		m.filename, scriptName(m.useEnhanced), m.status, strings.Join(m.args, " "),
+	)))
 	b.WriteString(m.progress.ViewAs(m.percent))
 	b.WriteString("\n\n")
-	if !m.started && !m.done {
+	b.WriteString(logStyle.Render(m.logView.View()))
+	b.WriteString("\n\n")
+	if !m.started {
 		b.WriteString("Press Enter to start, q to quit.\n")
+	} else if m.done {
+		b.WriteString("Job finished. Press q to exit.\n")
+	} else {
+		b.WriteString("Running… press q to cancel/exit.\n")
 	}
 	if m.err != nil {
 		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#f55")).Render(m.err.Error()))
@@ -74,7 +92,7 @@ b.WriteString(style.Render(fmt.Sprintf("hls-compressor TUI\n\nFile: %s\nScript: 
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			if m.cancel != nil {
@@ -86,27 +104,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(m.startEncoding(), m.waitForNextEvent())
 			}
 		}
-case startedMsg:
+	case tea.WindowSizeMsg:
+		// Adjust viewport
+		h := msg.Height - 12
+		if h < 6 {
+			h = 6
+		}
+		m.logView.Width = msg.Width - 6
+		m.logView.Height = h
+	case startedMsg:
 		m.started = true
 		m.status = "Encoding…"
 		return m, m.waitForNextEvent()
-case lineMsg:
-		// Parse line for progress time
+	case lineMsg:
+		// Parse line for progress time and append to log
 		ln := string(msg)
 		m.percent = updateProgressFromFFmpegLine(m.durationSec, ln, m.percent)
 		if strings.TrimSpace(ln) != "" {
 			m.status = ln
+			m.logView.SetContent(m.logView.View() + ln + "\n")
 		}
 		return m, tea.Batch(m.progress.SetPercent(m.percent), m.waitForNextEvent())
 	case finishedMsg:
 		m.done = true
 		m.status = "Done"
-		return m, tea.Quit
+		return m, nil
 	case errMsg:
 		m.err = msg.err
 		m.done = true
 		m.status = "Error"
-		return m, tea.Quit
+		return m, nil
 	}
 	// Note: we’re not forwarding messages to the progress component here.
 	// For advanced resize handling, wire progress.Update(msg) and assign back.
