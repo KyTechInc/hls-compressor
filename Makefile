@@ -64,8 +64,18 @@ run: tui
 .PHONY: bin
 bin:
 	@mkdir -p bin
-	@printf '%s\n' '#!/usr/bin/env bash' 'exec "$$PWD/hls-tui/hls-tui" "$$@"' > bin/hls
-	@printf '%s\n' '#!/usr/bin/env bash' 'exec "$$PWD/hls-tui/hls-tui" "$$@"' > bin/hlsx
+	@printf '%s\n' \
+		'#!/usr/bin/env bash' \
+		'set -euo pipefail' \
+		'SCRIPT_DIR="$$(cd "$$(dirname "$$BASH_SOURCE")" && pwd)"' \
+		'REPO_ROOT="$${SCRIPT_DIR}/.."' \
+		'exec "$${REPO_ROOT}/hls-tui/hls-tui" "$$@"' > bin/hls
+	@printf '%s\n' \
+		'#!/usr/bin/env bash' \
+		'set -euo pipefail' \
+		'SCRIPT_DIR="$$(cd "$$(dirname "$$BASH_SOURCE")" && pwd)"' \
+		'REPO_ROOT="$${SCRIPT_DIR}/.."' \
+		'exec "$${REPO_ROOT}/hls-tui/hls-tui" "$$@" -q quality -hw' > bin/hlsx
 	@chmod +x bin/hls bin/hlsx
 	@echo "Shims created: bin/hls, bin/hlsx (both run enhanced by default; pass -basic to use basic script)"
 
@@ -73,14 +83,17 @@ bin:
 install: tui
 	@bin_dir=/usr/local/bin; \
 	exe="$(CURDIR)/hls-tui/hls-tui"; \
-	content='#!/usr/bin/env bash\nexec "'"$$exe"'" "'"$$@"'"\n'; \
+	tmp_hls="$$(mktemp)"; tmp_hlsx="$$(mktemp)"; \
+	printf '%s\n' '#!/usr/bin/env bash' 'exec "__EXE__" "$$@"' > "$$tmp_hls"; \
+	printf '%s\n' '#!/usr/bin/env bash' 'exec "__EXE__" "$$@" -q quality -hw' > "$$tmp_hlsx"; \
+	sed -i.bak "s|__EXE__|$$exe|g" "$$tmp_hls" && rm -f "$$tmp_hls.bak"; \
+	sed -i.bak "s|__EXE__|$$exe|g" "$$tmp_hlsx" && rm -f "$$tmp_hlsx.bak"; \
 	if [ -w "$$bin_dir" ]; then \
-		printf "%b" "$$content" > "$$bin_dir/hls" && chmod +x "$$bin_dir/hls"; \
-		printf "%b" "$$content" > "$$bin_dir/hlsx" && chmod +x "$$bin_dir/hlsx"; \
+		cp "$$tmp_hls" "$$bin_dir/hls" && cp "$$tmp_hlsx" "$$bin_dir/hlsx" && chmod +x "$$bin_dir/hls" "$$bin_dir/hlsx"; \
 	else \
-		printf "%b" "$$content" | sudo tee "$$bin_dir/hls" >/dev/null && sudo chmod +x "$$bin_dir/hls"; \
-		printf "%b" "$$content" | sudo tee "$$bin_dir/hlsx" >/dev/null && sudo chmod +x "$$bin_dir/hlsx"; \
+		sudo cp "$$tmp_hls" "$$bin_dir/hls" && sudo cp "$$tmp_hlsx" "$$bin_dir/hlsx" && sudo chmod +x "$$bin_dir/hls" "$$bin_dir/hlsx"; \
 	fi; \
+	rm -f "$$tmp_hls" "$$tmp_hlsx"; \
 	echo "Installed to $$bin_dir: hls, hlsx"
 
 uninstall:

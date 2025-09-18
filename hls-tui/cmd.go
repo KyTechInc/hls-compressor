@@ -35,16 +35,34 @@ func main() {
 	// Find the first non-flag token as the filename argument (allows flags before/after)
 	var filenameToken string
 	var flagTokens []string
+	// Track flags that expect a value (support both "-q value" and "-q=value")
+	valueFlags := map[string]bool{"-q": true, "-r": true}
+	expectValue := ""
 	for _, a := range os.Args[1:] {
-		if strings.HasPrefix(a, "-") && filenameToken == "" {
+		// If previous flag expects a value, consume this token as its value
+		if expectValue != "" {
 			flagTokens = append(flagTokens, a)
+			expectValue = ""
 			continue
 		}
+		// Handle flags before filename (and after). Preserve flag ordering.
+		if strings.HasPrefix(a, "-") && filenameToken == "" {
+			flagTokens = append(flagTokens, a)
+			// If the flag is of the form -q=value, it already contains its value
+			if strings.Contains(a, "=") {
+				continue
+			}
+			if valueFlags[a] {
+				expectValue = a
+			}
+			continue
+		}
+		// First non-flag token becomes the filename
 		if filenameToken == "" {
 			filenameToken = a
 			continue
 		}
-		// after filename found, remaining tokens go to flags too
+		// After filename, everything else is treated as flags/args
 		flagTokens = append(flagTokens, a)
 	}
 	if filenameToken == "" {
@@ -52,34 +70,36 @@ func main() {
 		os.Exit(1)
 	}
 
-filename, probeRel := normalizeFilename(filenameToken)
-// Determine working directory based on provided path (if any)
-workDir := ""
-if dir := filepath.Dir(filenameToken); dir != "." && dir != "" {
-	workDir, _ = filepath.Abs(dir)
-}
-probePath := probeRel
-if workDir != "" && !filepath.IsAbs(probeRel) {
-	probePath = filepath.Join(workDir, probeRel)
-}
-if abs, err := filepath.Abs(probePath); err == nil { probePath = abs }
+	filename, probeRel := normalizeFilename(filenameToken)
+	// Determine working directory based on provided path (if any)
+	workDir := ""
+	if dir := filepath.Dir(filenameToken); dir != "." && dir != "" {
+		workDir, _ = filepath.Abs(dir)
+	}
+	probePath := probeRel
+	if workDir != "" && !filepath.IsAbs(probeRel) {
+		probePath = filepath.Join(workDir, probeRel)
+	}
+	if abs, err := filepath.Abs(probePath); err == nil {
+		probePath = abs
+	}
 
-// Decide what to pass into the script as the first argument:
-// - If user provided a .mp4 path and it exists, pass the absolute .mp4 path (scripts handle it)
-// - Otherwise pass the basename (scripts will append .mp4)
-passFirstArg := filename
-if strings.HasSuffix(strings.ToLower(filenameToken), ".mp4") {
-	passFirstArg = probePath
-}
+	// Decide what to pass into the script as the first argument:
+	// - If user provided a .mp4 path and it exists, pass the absolute .mp4 path (scripts handle it)
+	// - Otherwise pass the basename (scripts will append .mp4)
+	passFirstArg := filename
+	if strings.HasSuffix(strings.ToLower(filenameToken), ".mp4") {
+		passFirstArg = probePath
+	}
 
 	fs := flag.NewFlagSet("hls-tui", flag.ContinueOnError)
 	fs.SetOutput(new(strings.Builder)) // suppress default error printing
 	var (
 		flagBasic bool
-		flagQ    string
-		flagR    string
-		flagHW   bool
-		flagT    bool
+		flagQ     string
+		flagR     string
+		flagHW    bool
+		flagT     bool
 	)
 	fs.BoolVar(&flagBasic, "basic", false, "use basic script")
 	fs.StringVar(&flagQ, "q", "balanced", "quality preset")
@@ -110,11 +130,11 @@ if strings.HasSuffix(strings.ToLower(filenameToken), ".mp4") {
 	}
 
 	dur := probeDuration(probePath)
-m := initialModel(filename, useEnhanced, dur)
-m.args = passArgs
-m.workDir = workDir
-m.probePath = probePath
-m.firstArg = passFirstArg
+	m := initialModel(filename, useEnhanced, dur)
+	m.args = passArgs
+	m.workDir = workDir
+	m.probePath = probePath
+	m.firstArg = passFirstArg
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if err := p.Start(); err != nil {
 		fmt.Println("error:", err)

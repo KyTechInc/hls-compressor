@@ -1,2 +1,5 @@
 #!/usr/bin/env bash
-exec "$PWD/hls-tui/hls-tui" "$@"
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$BASH_SOURCE")" && pwd)"
+REPO_ROOT="${SCRIPT_DIR}/.."
+exec "${REPO_ROOT}/hls-tui/hls-tui" "$@" -q quality -hw

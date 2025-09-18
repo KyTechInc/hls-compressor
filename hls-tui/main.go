@@ -9,9 +9,9 @@ import (
 	"runtime"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -30,10 +30,10 @@ type model struct {
 	status      string
 	progress    progress.Model
 	logView     viewport.Model
-args        []string
-	workDir    string
-	probePath  string
-	firstArg   string
+	args        []string
+	workDir     string
+	probePath   string
+	firstArg    string
 
 	// process management
 	cancel context.CancelFunc
@@ -72,10 +72,10 @@ func (m model) Init() tea.Cmd { return nil }
 
 func (m model) View() string {
 	var b strings.Builder
-b.WriteString(paddingStyle.Render(fmt.Sprintf(
+	b.WriteString(paddingStyle.Render(fmt.Sprintf(
 		"hls-compressor TUI\n\nFile: %s\nScript: %s\nStatus: %s\nArgs: %s\nWorkDir: %s\nProbe: %s\nPassArg: %s\n\n",
 		m.filename, scriptName(m.useEnhanced), m.status, strings.Join(m.args, " "), m.workDir, m.probePath, m.firstArg,
-)))
+	)))
 	b.WriteString(m.progress.ViewAs(m.percent))
 	b.WriteString("\n\n")
 	b.WriteString(logStyle.Render(m.logView.View()))
@@ -95,7 +95,7 @@ b.WriteString(paddingStyle.Render(fmt.Sprintf(
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-case tea.KeyMsg:
+	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			if m.cancel != nil {
@@ -150,7 +150,7 @@ func (m model) startEncoding() tea.Cmd {
 		m.cancel = cancel
 		// Start the runner in a goroutine
 		go func() {
-if err := runScript(ctx, m.useEnhanced, m.firstArg, m.args, m.workDir, m.lineCh); err != nil {
+			if err := runScript(ctx, m.useEnhanced, m.firstArg, m.args, m.workDir, m.lineCh); err != nil {
 				m.doneCh <- err
 				return
 			}
@@ -208,20 +208,21 @@ func runScript(ctx context.Context, enhanced bool, firstArg string, extraArgs []
 		return fmt.Errorf("script not found: %s", script)
 	}
 	// Log execution context
-out <- fmt.Sprintf("running: %s %s", script, strings.Join(append([]string{firstArg}, extraArgs...), " "))
+	out <- fmt.Sprintf("running: %s %s", script, strings.Join(append([]string{firstArg}, extraArgs...), " "))
+	defaultCwd := repoRoot
 	if workDir != "" {
 		out <- fmt.Sprintf("cwd: %s", workDir)
 	} else {
-		out <- fmt.Sprintf("cwd: %s", mustAbs("."))
+		out <- fmt.Sprintf("cwd: %s", defaultCwd)
 	}
 
-allArgs := append([]string{firstArg}, extraArgs...)
+	allArgs := append([]string{firstArg}, extraArgs...)
 	exe, args := bashWrapArgs(script, allArgs...)
 	cmd := exec.CommandContext(ctx, exe, args...)
 	if workDir != "" {
 		cmd.Dir = workDir
 	} else {
-		cmd.Dir = mustAbs(".")
+		cmd.Dir = defaultCwd
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {

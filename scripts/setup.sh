@@ -64,11 +64,17 @@ create_shims() {
   mkdir -p "$ROOT_DIR/bin"
   cat > "$ROOT_DIR/bin/hls" <<'EOF'
 #!/usr/bin/env bash
-exec "$PWD/hls-tui/hls-tui" "$@"
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${SCRIPT_DIR}/.."
+exec "${REPO_ROOT}/hls-tui/hls-tui" "$@"
 EOF
   cat > "$ROOT_DIR/bin/hlsx" <<'EOF'
 #!/usr/bin/env bash
-exec "$PWD/hls-tui/hls-tui" "$@"
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${SCRIPT_DIR}/.."
+exec "${REPO_ROOT}/hls-tui/hls-tui" "$@" -q quality -hw
 EOF
   chmod +x "$ROOT_DIR/bin/hls" "$ROOT_DIR/bin/hlsx"
   info "Created shims: bin/hls, bin/hlsx"
