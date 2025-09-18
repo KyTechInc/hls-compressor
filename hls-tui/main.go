@@ -86,13 +86,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(m.startEncoding(), m.waitForNextEvent())
 			}
 		}
-	case startedMsg:
+case startedMsg:
 		m.started = true
 		m.status = "Encoding…"
-	case lineMsg:
+		return m, m.waitForNextEvent()
+case lineMsg:
 		// Parse line for progress time
-		m.percent = updateProgressFromFFmpegLine(m.durationSec, string(msg), m.percent)
-		return m, m.progress.SetPercent(m.percent)
+		ln := string(msg)
+		m.percent = updateProgressFromFFmpegLine(m.durationSec, ln, m.percent)
+		if strings.TrimSpace(ln) != "" {
+			m.status = ln
+		}
+		return m, tea.Batch(m.progress.SetPercent(m.percent), m.waitForNextEvent())
 	case finishedMsg:
 		m.done = true
 		m.status = "Done"
