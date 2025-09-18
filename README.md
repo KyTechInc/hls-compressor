@@ -63,6 +63,35 @@ myvideo/
 └── ...
 ```
 
+## TUI (Terminal UI)
+A simple terminal UI is included to run the scripts with nicer progress output.
+
+Quick init:
+```
+make init
+# This will check/install ffmpeg (macOS/Linux), build the TUI, and create bin shims.
+```
+
+Usage with simple commands:
+```
+# Enhanced (default)
+./bin/hls myvideo -q quality -r "1080,720" -hw -t
+
+# Basic script (pass -basic)
+./bin/hls myvideo -basic -t
+
+# Or use the alternate shim (same behavior as hls)
+./bin/hlsx myvideo -q balanced
+```
+
+Notes:
+- On Windows, make may not be available by default. You can still build and run:
+  - Install ffmpeg via winget: `winget install --id Gyan.FFmpeg.Full`
+  - Build the TUI: `cd hls-tui && go build`
+  - Run: `./hls-tui/hls-tui myvideo ...` (or create your own .bat shim)
+
+The TUI simply wraps the existing scripts and shows progress; it doesn’t change their behavior.
+
 ## Notes
 - drawtext overlay uses a system font via ffmpeg; if you see errors, install a TrueType font and ensure ffmpeg has fontconfig support. The basic script uses a hardcoded font path in the example.
 - Hardware acceleration depends on your system capabilities. Fallback to software is automatic.
