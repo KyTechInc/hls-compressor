@@ -28,19 +28,41 @@ func normalizeFilename(arg string) (string, string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: hls-tui <video-name-or-path> [flags]\n\nFlags (enhanced script):\n  -q string     quality preset: fast|balanced|quality (default \"balanced\")\n  -r string     comma-separated resolutions, e.g. \"1440,1080,720\" (default \"1440,1080,720\")\n  -hw           enable hardware acceleration when available\n  -t            add text overlay\n  -basic        use basic script instead of enhanced\n")
+		fmt.Println("Usage: hls-tui <video-name-or-path> [flags]\\n\\nFlags (enhanced script):\\n  -q string     quality preset: fast|balanced|quality (default \\\"balanced\\\")\\n  -r string     comma-separated resolutions, e.g. \\\"1440,1080,720\\\" (default \\\"1440,1080,720\\\")\\n  -hw           enable hardware acceleration when available\\n  -t            add text overlay\\n  -basic        use basic script instead of enhanced\\n")
 		os.Exit(1)
 	}
 
-	// Positional arg: filename (with or without extension)
-	arg := os.Args[1]
-filename, probePath := normalizeFilename(arg)
-// Determine working directory based on provided path (if any)
-workDir := ""
-if dir := filepath.Dir(arg); dir != "." && dir != "" {
-	workDir, _ = filepath.Abs(dir)
-}
-args := os.Args[2:]
+	// Find the first non-flag token as the filename argument (allows flags before/after)
+	var filenameToken string
+	var flagTokens []string
+	for _, a := range os.Args[1:] {
+		if strings.HasPrefix(a, "-") && filenameToken == "" {
+			flagTokens = append(flagTokens, a)
+			continue
+		}
+		if filenameToken == "" {
+			filenameToken = a
+			continue
+		}
+		// after filename found, remaining tokens go to flags too
+		flagTokens = append(flagTokens, a)
+	}
+	if filenameToken == "" {
+		fmt.Println("error: missing input filename")
+		os.Exit(1)
+	}
+
+	filename, probeRel := normalizeFilename(filenameToken)
+	// Determine working directory based on provided path (if any)
+	workDir := ""
+	if dir := filepath.Dir(filenameToken); dir != "." && dir != "" {
+		workDir, _ = filepath.Abs(dir)
+	}
+	probePath := probeRel
+	if workDir != "" && !filepath.IsAbs(probeRel) {
+		probePath = filepath.Join(workDir, probeRel)
+	}
+	if abs, err := filepath.Abs(probePath); err == nil { probePath = abs }
 
 	fs := flag.NewFlagSet("hls-tui", flag.ContinueOnError)
 	fs.SetOutput(new(strings.Builder)) // suppress default error printing
@@ -56,7 +78,7 @@ args := os.Args[2:]
 	fs.StringVar(&flagR, "r", "1440,1080,720", "resolutions")
 	fs.BoolVar(&flagHW, "hw", false, "hardware acceleration")
 	fs.BoolVar(&flagT, "t", false, "text overlay")
-	_ = fs.Parse(args)
+	_ = fs.Parse(flagTokens)
 
 	useEnhanced := !flagBasic
 	var passArgs []string
